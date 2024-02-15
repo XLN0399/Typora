@@ -194,3 +194,38 @@ stop-dfs.sh
 
 
 
+# HDFS的Shell操作
+
+
+
+HDFS和Linux系统一样，使用根目录作为组织形式，是命令操作上和Linux系统一样，通过协议头进行目录路径区分是属于Linux系统或是HDFS文件系统。
+
+Linux系统中路径协议头：`file://`
+
+HDFS文件系统中路径协议头：`hdfs://xxxnode:8020`
+
+在实际操作可以省略协议头，系统操作命令会自动进行识别
+
+
+
+HDFS提供了两套操作命令：
+
+老版本命令：`hadoop fs [generic option]`
+
+新版本命令：`hdfs dfs [generic option]`
+
+两中命令使用上相同
+
+
+
+## 创建文件夹
+
+```sh
+hadoop 
+```
+
+
+
+
+
+# HDFS的存储原理
