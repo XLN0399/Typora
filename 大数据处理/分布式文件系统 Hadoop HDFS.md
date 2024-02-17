@@ -192,6 +192,30 @@ start-dfs.sh
 stop-dfs.sh
 ```
 
+执行原理：
+
+- 首先在执行此脚本机器上，启动`SecondaryNameNode`
+- 读取`core-site.xml`内容（`fs.defaultFS`），确认`NameNode`所在机器，启动`NameNode`
+- 读取`workers`内容，确认`DataNode`所在机器，启动全部`DataNode`
+
+
+
+- 首先在执行此脚本机器上，关闭`SecondaryNameNode`
+- 读取`core-site.xml`内容（`fs.defaultFS`），确认`NameNode`所在机器，关闭`NameNode`
+- 读取`workers`内容，确认`DataNode`所在机器，关闭全部`DataNode`
+
+
+
+单进程启停
+
+```sh
+hadoop-daemon.sh (start|status|stop) (namenode|secondarynamenode|datanode)
+
+hdfs --daemon (start|status|stop) (namenode|secondarynamenode|datanode)
+```
+
+
+
 
 
 # HDFS的Shell操作
@@ -404,6 +428,8 @@ hdfs dfs -chmod [-R] 777 /xxx.txt
 
 ## HDFS客户端使用
 
+### Jetbrains插件
+
 在Jetbrains产品中下载 Big Data Tools插件
 
 <img src="assets/image-20240215231600993.png" alt="image-20240215231600993" style="zoom:80%;" />
@@ -429,6 +455,112 @@ windows系统下基础设置
 
 
 ![image-20240215234123245](assets/image-20240215234123245.png)
+
+
+
+
+
+### 使用NFS网关功能挂在HDFS到本地
+
+
+
+配置HDFS
+
+1. `core-site.xml`文件配置
+
+```xml
+<configuration>
+    <!--允许hadoop用户代理任何其他用户组-->
+	<property>
+    	<name>hadoop.proxyuser.hadoop.groups</name>
+        <value>*</value>
+    </property>
+    <!--允许代理任意服务器的请求-->
+    <property>
+    	<name>hadoop.proxyuser.hadoop.hosts</name>
+        <value>*</value>
+    </property>
+</configuration>
+```
+
+2. `hdfs-site.xml`文件配置
+
+```xml
+<configuration>
+    <!--NFS操作HDFS系统 使用的超级用户 (hdfs的启动用户为超级用户)-->
+	<property>
+    	<name>nfs.superuser</name>
+        <value>hadoop</value>
+    </property>
+    <!--NFS接收数据上传时使用的临时目录-->
+    <property>
+    	<name>hadoop.dump.dir</name>
+        <value>/tmp/.hdfs-nfs</value>
+    </property>
+    <!--NFS允许连接的客户端IP和权限 rw表示读写-->
+    <property>
+    	<name>nfs.exports.allowed.hosts</name>
+        <value>192.168.88.1 rw</value>
+    </property>
+</configuration>
+```
+
+
+
+启动NFS功能
+
+1. 将配置好后的`core-site.xml`和`hdfs-site.xml`发送到其他服务器上，进行相同的配置。
+
+   ```/
+   scp core-site.xml hdfs-site.xml node2:$PWD/
+   scp core-site.xml hdfs-site.xml node3:$PWD/
+   ```
+
+2. 重启HDFS集群
+
+   ```sh
+   stop-dfs.sh
+   start-dfs.sh
+   ```
+
+3. 停止Linux系统NFS相关进程
+
+   ```sh
+   systemctl stop nfs
+   systemctl disable nfs
+   yum remove -y rpcbind
+   ```
+
+4. 启动`portmap`（HDFS自带的rpcbing功能），**以root用户权限执行**
+
+   ```sh
+   hdfs --daemon start portmap
+   ```
+
+5. 启动`nfs`（HDFS自带的nfs功能），**以hadoop用户权限执行**
+
+   ```sh
+   hdfs --daemon start nfs3
+   ```
+
+
+
+检查NFS是否正常
+
+在上述操作中，我们卸载了系统自带的rpcbin，缺少两个命令，需要在另一条datanode服务器上来查看
+
+```sh
+rpcbin -p node1
+
+showmount -e node1
+```
+
+
+
+在windows挂在HDFS
+
+1. 在windows的`控制面板/启用或关闭Windows功能`中选择NFS进行安装（windows专业版才具有）
+2. 在windows的命令提示符中执行`net use X:\\192.168.88.130\!`，完成后即可看见网络位置出出现一个磁盘标识符
 
 
 
