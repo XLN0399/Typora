@@ -565,3 +565,192 @@ showmount -e node1
 
 
 # HDFS的存储原理
+
+
+
+## 存储原理
+
+
+
+- 将文件分成几部分，分别存储在不同的服务器上
+- HDFS存储系统中设定统一大小的管理单位——block块，每个块默认256MB（可修改），block块是HDFS最小存储单元
+- 将文件拆分成block块，每个服务器存储一部分的块
+
+
+
+- 丢失一个block块，会导致文件不完成，造成损坏
+
+- HDFS存储系统通过多个副本（备份）来解决块数据丢失问题
+- 每个block，默认设置有3个副本（本身一个块加上两个备份的块），备份的块分别存储在不同服务器上，不存储在本服务器上，提高安全性
+
+
+
+> - 数据存入HDFS是分布式存储，即每个服务器节点，负责数据的一部分
+> - 数据在HDFS上划分为一个个block块进行存储
+> - 在HDFS上，数据block块可以有多个副本，提高数据安全性
+
+
+
+
+
+## HDFS副本块配置
+
+修改`hdfs-site.xml`文件进行配置
+
+```xml
+<configuration>
+    <!--属性默认配置为3，一般情况下，无需主动配置-->
+	<property>
+    	<name>dfs.replication</name>
+        <value>3</value>
+    </property>
+</configuration>
+```
+
+
+
+除了配置文件上对副本块数量进行设置，也可以通过上传通过命令来对副本块数量进行设置
+
+```sh
+hdfs dfs -D dfs.replication=2 -put <localsrc> ... <dst>
+```
+
+
+
+对于已经存在HDFS的文件，修改`dfs.replication`属性不会生效，可以通过以下命令进行修改
+
+```sh
+hdfs dfs -setrep [-R] 2 <path>
+```
+
+`-R`选项可选，使用`-R`表示对子目录也生效
+
+
+
+## 检查文件副本
+
+```sh
+hdfs dfs <path> [-files [-blocks [-location]]]
+```
+
+- `-files`：列出路径内的文件状态
+- `-files -blocks`：输出文件块报告
+- `-files -blocks -locations`：输出每一个block的详情
+
+
+
+## Block配置
+
+修改`hdfs-site.xml`进行配置，HDFS默认设置为256MB一个
+
+```xml
+<configuration>
+    <!--默认设置为256MB 268435456为二进制数表示-->
+	<property>
+    	<name>dfs.blocksize</name>
+        <value>268435456</value>
+        <description>设置HDFS块大小 单位是bit</description>
+    </property>
+</configuration>
+```
+
+
+
+## Block块管理
+
+`namenode`基于一批`edits`和一个`fsimage`文件的配合，完成整个文件系统的管理和维护
+
+![image-20240222195404624](assets/image-20240222195404624.png)
+
+
+
+- `edits`文件类似于日志记录，记录HDFS中每一次操作，以及本次操作影响的文件其对应的block
+- 随着操作越多，`edits`记录文件越来越大，于是就会当记录到达一定数据量时，新创建`edits`文件，所以会存在多个`edits`文件，确保不会有超大的`edits`存在，保证检索性能
+
+
+
+`fsimage`记录的内容
+
+![image-20240222201402019](assets/image-20240222201402019.png)
+
+
+
+- 为了能够快速对block进行检索，需要合并`edits`文件，得到最终结果，于是全部`edits`文件，合并的最终成为`fsimage`文件
+- `fsimage`文件记录HDFS命名空间中所有文件和目录的层次机构，以及每个文件和目录的属性信息，`edits`中记录的所有操作的最终结果直接体现在`fsimage`文件中，`fsimage`文件就相当于虚拟机的快照
+
+
+
+### namenode元数据管理维护
+
+1. 每次对HDFS的操作，均会被`edits`文件记录
+2. `edits`达到大小上限后，开启新的`edits`记录
+3. 定期进行`edits`合并操作
+   - 如果当前没有`fsimage`文件，将全部`edits`合并为第一个`fsimage`
+   - 如果已存在`fsimage`文件，将全部`edits`和已存在的`fsimage`进行合并，形成新的`fsimage`
+
+
+
+### 元数据合并控制参数
+
+元数据合并是一个定时操作
+
+- `dfs.namenode.checkpoint.period`，默认3600秒（1小时）
+- `dfs.namenode.checkpoint.txns`，默认1000000，即100W次事务
+
+只要满足一个条件，就会执行一次合并操作
+
+- `dfs.namenode.checkpoint.check.period`，默认每60秒检查一次
+
+
+
+
+
+## SecondaryNameNode作用
+
+![image-20240222201304096](assets/image-20240222201304096.png)
+
+SecondaryNameNode来进行元数据的合并，通过http从namenode拉去数据（edits和fsimage），然后合并完成后提供给namenode使用
+
+
+
+## HDFS读写流程
+
+
+
+<img src="assets/image-20240222201526543.png" alt="image-20240222201526543" style="zoom:67%;" />
+
+### 数据写入流程
+
+1. 客户端向`namenode`发送申请
+2. `namenode`审核权限、剩余空间后，满足条件允许写入，并告诉客户端写入的`datanode`地址
+3. 客户端向指定`datanode`发送数据包
+4. `datanode`接受数据写入，同时完成数据备份的复制工作，将接受的数据分别发送给其他`datanode`进行备份
+5. 写入完成后客户端通知`namenode`，`namenode`做元数据记录工作
+
+
+
+
+
+
+
+<img src="assets/image-20240222202218144.png" alt="image-20240222202218144" style="zoom:67%;" />
+
+
+
+### 数据读取流程
+
+1. 客户端向`namenode`申请读取某文件
+2. `namenode`判断客户端权限等细节，允许读取，并返回此文件的block列表
+3. 客户端拿到block列表后自行寻找`datanode`读取即可
+
+
+
+> 注意：
+>
+> 1. 读写过程中，`namenode`都不经手数据，均有客户端和`datanode`直接通讯，`namenode`只进行授权判断等
+> 2. 读写中，客户端会被分配离自己最近的`datanode`，（网络距离最近）。HDFS内置网络距离计算算法，可以通过IP地址，路由表来推断网络距离
+
+
+
+
+
