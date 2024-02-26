@@ -135,7 +135,7 @@ ln -s /export/server/hadoop-3.3.6 hadoop
 ```sh
 cd /export/server
 scp -r hadoop-3.3.6 node2:/export/server
-scp -r hadoop-3.3.6 node3:$pwd
+scp -r hadoop-3.3.6 node3:$PWD
 ```
 
 在node2，node3中同样创建出软链接，规范文件命名
