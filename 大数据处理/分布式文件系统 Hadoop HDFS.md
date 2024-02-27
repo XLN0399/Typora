@@ -216,6 +216,8 @@ hdfs --daemon (start|status|stop) (namenode|secondarynamenode|datanode)
 
 
 
+启动完成后，在浏览器打开`http://node1:9870`，即可查看HDFS文件系统的管理网页
+
 
 
 # HDFS的Shell操作
