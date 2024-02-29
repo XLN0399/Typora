@@ -303,3 +303,130 @@ nohup /export/server/hive/bin/hive --service metastore >> /export/server/hive/lo
 最后成功结果
 
 ![image-20240228145615015](assets/image-20240228145615015.png)
+
+
+
+
+
+## Hive体验
+
+首先要确保启动Metastore服务
+
+```sh
+nohup /export/server/hive/bin/hive --service metastore >> /export/server/hive/logs/metastore.log 2>&1 &
+```
+
+然后启动Hive Shell客户端
+
+```sh
+/export/server/hive/bin/hive
+```
+
+
+
+在Hive Shell环境中可以直接写SQL语句
+
+示例：
+
+```sql
+create table tb_user(id int, name string, gender string);
+insert into tb_user values(1, '张三', '男'), (2, '李斯', '男'), (3, '馨雅', '女');
+select gender, count(*) from tb_user group by gender;
+select * from tb_user;
+```
+
+
+
+Hive的数据默认存储在HDFS中`/user/hive/warehouse`中
+
+<img src="assets/image-20240229100222631.png" alt="image-20240229100222631" style="zoom:100%;" />
+
+
+
+<img src="assets/image-20240229100330374.png" alt="image-20240229100330374" style="zoom: 150%;" />
+
+
+
+MySQL中存储的是元数据，用于管理
+
+
+
+可以通过YARN的Web UI来验证SQL语句启动的Map Reduce程序，`http://node1:8088`
+
+![image-20240229100710268](assets/image-20240229100710268.png)
+
+
+
+只有参与分布式计算的才会执行MapReduce程序，而示例中最后一条查询全部信息，并没有涉及到计算，所以没有执行MapReduce程序
+
+
+
+## 客户端
+
+
+
+Hive除了Metastore必须启动外，客户端提供了两种启动方式
+
+```sh
+# 方式1 Hive Shell方式 可以直接写SQL
+/export/server/hive/bin/hive
+
+# 方式2 Hive ThriftServer方式 不可直接写SQL 需要外部客户端链接使用
+/export/server/hive/bin/hive --service hiveserver2
+```
+
+
+
+方式1即上述示例，在Hive的Shell客户端直接写SQL语句
+
+此外还有通过Hive ThriftSerer 第三发客户端连接使用，hiveserver2是Hive内置的一个ThriftServer服务，提供Thrift端口供其他客户端连接
+
+![image-20240229102611725](assets/image-20240229102611725.png)
+
+
+
+```sh
+/export/server/hive/bin/hive --service hiveserver2 >>/export/server/hive/logs/hiveserver2.log 2>&1 &
+```
+
+
+
+<img src="assets/image-20240229102827940.png" alt="image-20240229102827940" style="zoom:150%;" />
+
+
+
+`8389 RunJar`即为启动的hiveserver2服务，对外提供的默认端口为`10000`
+
+
+
+### beeline客户端
+
+beeline客户端是Hive中内置的外部客户端
+
+```sh
+# 启动beeline
+/export/server/hive/bin/beeline
+```
+
+进入beeline中后，需要配置连接，连接hiveserver2提供的端口
+
+```hive
+!connect jdbc:hive2://node1:10000
+# 用户名 需要hdfs权限
+hadoop
+# 密码没有设置 可以为空
+
+```
+
+<img src="assets/image-20240229103643219.png" alt="image-20240229103643219" style="zoom:150%;" />
+
+如图，连接成功
+
+
+
+### DataGrip客户端
+
+
+
+![image-20240229104221626](assets/image-20240229104221626.png)
+
