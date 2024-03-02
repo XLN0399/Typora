@@ -420,3 +420,330 @@ insert overwrite [local] directory 'file_dir' [row format delimited fields termi
 ```
 
 这里`file_path`指定到具体文件名
+
+
+
+## 分区表操作
+
+将数据按照一定原则切分成一个个小文件，比如说将文件按照年。月、日进行分区，每一个分区，是一个文件夹
+
+Hive支持多个字段作为分区，实际就是多级文件夹，多分区带有层级关系
+
+
+
+基本语法
+
+```hive
+create table table_name (...) partitioned by (分区列 列类型, ...) row format delimited fields terminated by '';
+```
+
+
+
+示例代码
+
+```hive
+create table score (id int, name string) partitioned by (grade string, class string) row format delimited fields terminated by '\t';
+load data local inpath '/home/hadoop/list1.txt' into table score partition (grade='1', class='1');
+load data local inpath '/home/hadoop/list1.txt' into table score partition (grade='1', class='2');
+load data local inpath '/home/hadoop/list1.txt' into table score partition (grade='2', class='1');
+load data local inpath '/home/hadoop/list1.txt' into table score partition (grade='2', class='3');
+```
+
+查看表结果
+
+![image-20240302143933710](assets/image-20240302143933710.png)
+
+文件内容
+
+```tex
+1	馨雅
+2	南笙
+3	轩墨
+```
+
+
+
+这里我们可以发现有`grade class`两个字段被创建出来
+
+文件内容没有这两个字段内容，而是再加载数据的时候来指定分区
+
+同时我们可以去查看数据在HDFS存储形式
+
+![image-20240302144226448](assets/image-20240302144226448.png)
+
+
+
+按照分区，这里实际数据文件存储就是通过不同层级文件夹来区分，减少对数据的查找量
+
+
+
+- 查看分区
+
+```hive
+show partitions score;
+```
+
+![image-20240302144427867](assets/image-20240302144427867.png)
+
+
+
+- 添加分区
+
+```hive
+alter table score add partition(grade='3', class='1') partition(grade='4', class='1');
+```
+
+![image-20240302144718251](assets/image-20240302144718251.png)
+
+
+
+但是我们此时去产看表，没有发现有这个分区的内容，是因为该分区我们没有上传任何，有文件夹但是为空，可以查看目录
+
+![image-20240302144841176](assets/image-20240302144841176.png)
+
+可以发现新创建的目录下并没有数据文件，但该分区确实存在
+
+
+
+- 删除分区
+
+```hive
+alter table score drop partition(grade='2');
+```
+
+![image-20240302145029227](assets/image-20240302145029227.png)
+
+可以看到删除分区，删除分区后，默认情况下，hive也会删除对应在HDFS中的数据文件
+
+![image-20240302145854708](assets/image-20240302145854708.png)
+
+
+
+
+
+## 分桶表操作
+
+
+
+分桶表和分区表一样通过改变表的存储模式，从而完成对表的优化，但是和分区不同，**分区时将表拆分到不同的子文件夹中进行存储，而分桶是将表拆分到固定数量的不同文件中进行存储**
+
+
+
+- 开启分桶的自动优化（自动匹配reduce task数量和桶数量一致）
+
+```hive
+set hive.enforce.bucketing=true;
+```
+
+
+
+- 创建分桶表
+
+```hive
+create table table_name (id string, ...) clustered by (c_id) into 3 buckets [row format delimited fields terminated by '\t'];
+```
+
+
+
+示例代码
+
+```hive
+create table course (c_id string, c_name string, t_id string) clustered by (c_id)
+into 3 buckets row format delimited fields terminated by '\t';
+```
+
+
+
+分桶表数据加载
+
+桶表的数据加载不能通过load data加载，只能通过insert select
+
+一般采用创建一个临时表，通过load data加载数据进入临时表，然后通过insert select 从临时表向桶表插入数据
+
+
+
+```hive
+create table course_temp (c_id string, c_name string, t_id string) row format delimited fields terminated by '\t';
+load data local inpath '/home/hadoop/course.txt' into table course_temp;
+insert overwrite table course select * from course_temp cluster by (c_id);
+```
+
+`course.txt`
+
+```tex
+1	语文	周杰轮
+2	英语	周杰轮
+3	数学	王力鸿
+4	音乐	周杰轮
+5	体育	林均街
+6	物理	王力鸿
+7	历史	周杰轮
+```
+
+
+
+
+
+分桶表内部机制原理
+
+- 分桶设置，`into 3 buckets`，即分桶数量为3，那么表文件的数量就限定为3
+
+  当数据插入的时候，需要一分为3，进入三个桶文件中
+
+  ![image-20240302152659100](assets/image-20240302152659100.png)
+
+- 数据的三分划分基于分桶列的值进行哈希值进行取模来决定
+
+  以上述示例解释就是计算出`c_id`的哈希值，然后对这个哈希值进行取模运算，运算结果即为该条数据应该存放在哪一个文件中
+
+- 分桶数据新增就需要计算hash值，而load data不会触发MapRude，即没有计算过程，只是简单的移动数据，所以load data 无法用于分桶表的数据插入
+
+
+
+
+
+分区表性能提升：在指定分区的前提下，减少被操作的数据量，从而提升性能
+
+分桶表性能提升：基于分桶列的特定操作，如 过滤 join 分组 均可带来性能提升
+
+
+
+## 修改表操作
+
+
+
+- 表重命名
+
+```hive
+alter table old_table_name rename to new_table_name;
+```
+
+- 修改表属性
+
+```hive
+alter table table_name set tblproperties table_properties;
+```
+
+- 添加分区
+
+```hive
+alter table table_name partition(xx='xxx');
+```
+
+- 修改分区值
+
+```hive
+alter table table_name partition (xx='xx') rename to partition (xx='yy');
+```
+
+虽然通过这样的方式我们把分区名称改了，但是对应文件夹中并没有被修改，这里只是修改了元数据，在mysql定位到文件存在HDFS位置
+
+- 删除分区
+
+```hive
+alter table table_name drop partition (xx='xx');
+```
+
+- 修改列名
+
+```hive
+alter table table_name change xx yy int;
+```
+
+- 删除表
+
+```hive
+drop table table_name;
+```
+
+删除内部表的数据文件，而外部表的数据文件不会删除
+
+
+
+## 复杂类型操作
+
+
+
+### Array类
+
+```tex
+zhangsan	beijing,shanghai,tianjin,hangzhou
+wangwu	changchun,chengdu,wuhan,beijin
+```
+
+
+
+建表语句
+
+```hive
+create table test_array(name string, work_location array<string>)
+row format delimited fields terminated by '\t'
+collection items terminated by ',';
+```
+
+
+
+![image-20240302155119344](assets/image-20240302155119344.png)
+
+
+
+- `row format delimited fields terminated by '\t' `：指定列分隔符
+- `collection items terminated by ','`：指定集合元素的分隔符
+
+
+
+数据查看
+
+```hive
+select * from test_array;
+select name, size(test_array.work_location) location from test_array;
+select * from test_array where array_contains(work_location, 'tianjin');
+```
+
+
+
+### Map类
+
+```tex
+1,林杰均,father:林大明#mother:小甜甜#brother:小甜,28
+2,周杰伦,father:马小云#mother:黄大奕#brother:小天,22
+3,王葱,father:王林#mother:如花#sister:潇潇,29
+4,马大云,father:周街轮#mother:美美,26
+```
+
+
+
+建表语句
+
+```hive
+create table test_map(id int, name string, members map<string, string>, age int)
+row format delimited fields terminated by ','
+collection items terminated by '#'
+map keys terminated by ':';
+```
+
+- `map keys terminated by ':'`：指定key-value的分隔符
+
+
+
+数据查看
+
+```hive
+select * from test_map;
+select id, name, members['father'] father from test_map;
+select id, name, map_keys(members) from test_map;
+select id, name, map_values(members) from test_map;
+select id, name, size(members) from test_map;
+select * from test_map where array_contains(map_keys(members), 'sister');
+```
+
+
+
+
+
+
+
+
+
+
+
