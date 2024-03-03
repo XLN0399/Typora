@@ -739,6 +739,283 @@ select * from test_map where array_contains(map_keys(members), 'sister');
 
 
 
+### Struct类
+
+
+
+struct类是一个复合类型，可以在一个列中存放多个子列，每个子列允许设置类型和名称
+
+
+
+示例文件内容
+
+```tex
+1#周杰轮:11
+2#林均杰:16
+3#刘德滑:21
+4#张学油:26
+5#蔡依临:23
+```
+
+
+
+建表语句
+
+```hive
+create table test_struct(id int, info struct<name:string, age:int>)
+row format delimited fields terminated by '#'
+collection items terminated by ':';
+```
+
+
+
+数据加载与查询语句
+
+```hive
+load data local inpath '/home/hadoop/data_for_struct.txt' into table test_struct;
+# 直接使用列名.子列名 即可从struct中取出子列查询
+select id, info.name, info.age from test_struct;
+```
+
+
+
+struct的分隔符通过`collection items terminated by ':'`来指定，且struct类型只需要分隔数据即可（数据中不记录key，key是建表定义的固定的）
+
+
+
+![image-20240303105624932](assets/image-20240303105624932.png)
+
+
+
+
+
+# 数据查询
+
+
+
+## 基本查询
+
+
+
+语法示例
+
+```hive
+-- 查询所有
+select * from itheima.orders;
+-- 查询单列
+select orderId, totalMoney, userName, userAddress, payTime from orders;
+-- 查询数据量
+select count(*) from orders;
+-- 过滤广东省订单
+select * from orders where userAddress like '%广东%';
+-- 找出广东省单笔最大的订单
+select * from orders where userAddress like '%广东%' order by totalMoney desc limit 1;
+-- 统计未支付、已支付的人数
+select isPay, count(*) from orders group by isPay;
+-- 在已付款中，统计每个用户最高的一笔消费金额
+select userId, max(totalMoney) as max_money from orders where isPay = 1 group by userId;
+-- 统计每个用户平均订单消费额
+select userId, avg(totalMoney) from orders group by userId;
+-- 统计每个用户的平均订单消费额，过滤大于10000的数据
+select userId, avg(totalMoney) avg_money  from orders group by userId having avg_money > 10000;
+-- join订单表和用户表，找出用户名
+select o.orderId, o.userId, u.userName, o.totalMoney, o.userAddress, o.payTime from orders o join users u on o.userId = u.userId;
+```
+
+
+
+在Hive中基本查询和普通的SQL语句没有区别
+
+
+
+## RLIKE正则匹配
+
+
+
+正则表达式
+
+| 字符   | 匹配                                                     |
+| ------ | -------------------------------------------------------- |
+| .      | 任意单个字符，除换行符                                   |
+| []     | []中任意一个字符                                         |
+| -      | []内字符表示范围                                         |
+| ^      | 在[]内开头，匹配除[]内的字符之外的任意一个字符           |
+| \|     | 或                                                       |
+| \      | 将下一个字符标记为特殊字符、文本、反向引用或八进制转义符 |
+| *      | 零次或多次匹配前面的字符                                 |
+| +      | 一次或多次匹配前面的字符                                 |
+| ?      | 一次或零次匹配前面的字符                                 |
+| p{n}   | 正好匹配n次                                              |
+| p{n,}  | 至少匹配n次                                              |
+| p{n,m} | n$\le$m，至少匹配n次，最多匹配m次                        |
+| \d     | 数字字符匹配                                             |
+| \D     | 非数字字符匹配                                           |
+| \w     | 单词字符                                                 |
+| \W     | 非单词字符                                               |
+| \s     | 空白字符                                                 |
+| \S     | 非空白字符                                               |
+| \f     | 匹配换页符                                               |
+| \n     | 匹配换行符                                               |
+
+
+
+示例
+
+```hive
+-- 查找广东省
+select * from orders where userAddress rlike '.*广东.*';
+-- 查找用户地址是： xx省 xx市 xx区的数据
+select * from orders where userAddress rlike '..省 ..市 ..区';
+-- 查找用户姓为 张 王 邓
+select * from orders where userName rlike '[张王邓]\\S+';
+-- 查看手机号符合： 188****0***规则
+select * from orders where userPhone rlike '188\\d{4}0\\d{3}';
+```
+
+
+
+
+
+## Union联合
+
+
+
+Union用于将多个select语句的结果组合成单个结果集
+
+每个select语句返回的列的数量和名称必须相同。否则，引发架构错误
+
+```hive
+select ...
+	union [all]
+select ...
+```
+
+
+
+示例
+
+```hive
+select * from course where t_id = '周杰轮'
+    union
+select * from course where t_id = '王力鸿';
+```
+
+![image-20240303143049692](assets/image-20240303143049692.png)
+
+
+
+**union默认有去重功能**，通过加上关键字`all`，则不去重
+
+```hive
+select t_id, count(*) from (
+    select * from course where t_id = '周杰轮'
+        union all
+    select * from course where t_id = '王力鸿'
+) as u group by t_id;
+```
+
+
+
+union可以用在任何需要select发挥的地方
+
+
+
+## 数据采样
+
+
+
+Hive提供快速抽样的语法，可以快速从大表中随机抽取一些数据给用户查看
+
+
+
+### TABLESAMPLE函数
+
+进行随机抽样
+
+```hive
+select ... from table_name tablesample (bucket x out of y on (colname | rand()))
+```
+
+- `y`：表示将表数据随机划分成y份（y个桶）
+- `x`：表示从y里面随机抽取第x份数据作为取样
+- `colname`：表示随机的依据基于某个列的值
+- `rand()`：表示随机的依据基于整行
+
+
+
+示例代码
+
+```hive
+select userName, orderId, totalMoney from orders tablesample( bucket 1 out of 10 on userName);
+```
+
+将数据分成10个桶，然后选择第1个桶的数据
+
+
+
+- 使用colname作为随机依据，则其他条件不变下，每个抽样结果一致
+- 使用rand()作为随机依据，每次抽样结果都不同
+
+
+
+
+
+基于数据块抽样
+
+```hive
+select ... from table_name tablesample (num rows | num percent | num(k|M|G));
+```
+
+- `num rows`：表示抽样num条数据
+- `num percent`：表示抽样num百分百比例的数据，百分比是基于数据块大小，而不是行数
+- `num(K|M|G)`：表示抽取num大小，单位可以是K,M,G表示Kb,Mb,Gb
+
+
+
+使用这种语法抽样，条件不变每一次抽样的结果都一致，**无法做到随机，只是按照数据顺序从前向后取**。
+
+
+
+
+
+## Virtual Column虚拟列
+
+
+
+Hive目前可用3个虚拟列
+
+- `INPUT_FILE_NAME`：显示数据行所在的具体文件
+- `BLOCK_OFFSET_INSIDE_FILE`：显示数据行所在文件的偏移量
+- `ROW_OFFSET_INSIDE_BLOCK`：显示数据所在HDFS块的偏移量
+  - 此虚拟列需要设置：`set hive.exec.rowoffset=true`才可使用
+
+
+
+示例
+
+```hive
+set hive.exec.rowoffset=true;
+select *, INPUT__FILE__NAME, BLOCK__OFFSET__INSIDE__FILE, row__offset__inside__block from myhive.course;
+```
+
+- 需要注意是两个`-`
+
+![image-20240303151737056](assets/image-20240303151737056.png)
+
+
+
+虚拟列的作用
+
+- 查看行级别的数据详细参数
+- 可以用于where、 group by等各类统计计算中
+- 可以协助进行错误排查工作
+
+
+
+
+
+
+
 
 
 
