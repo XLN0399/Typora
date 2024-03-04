@@ -1016,11 +1016,113 @@ select *, INPUT__FILE__NAME, BLOCK__OFFSET__INSIDE__FILE, row__offset__inside__b
 
 
 
+# 函数
 
 
 
+Hive的函数分为两大类：内置函数、用户自定义函数UDF
+
+![image-20240304095446668](assets/image-20240304095446668.png)
 
 
 
+这里列举一些常用的示例，其余函数可查看官方文档[Apache Hive 中文手册 - Apache Hive | Docs4dev](https://www.docs4dev.com/docs/zh/apache-hive/3.1.1/reference/Home.html)
 
+
+
+示例代码
+
+```hive
+-- 数学部分
+-- 取整函数 round 返回double类型的整数值部分
+select round(3.1415926);
+-- 指定精确度取整函数 round(double a, int d) 返回指定进度d的double类型
+select round(3.1415926, 2);
+-- 取随机函数 rand
+select rand();
+-- 指定种子取随机数
+select rand(3);
+-- 绝对值
+select abs(-10);
+-- 得到Π值
+select pi();
+```
+
+
+
+```hive
+-- 集合函数
+-- 返回map类型的元素个数
+select name, size(members) from test_map;
+-- 返回array类型元素个数
+select name, size(work_location) from test_array;
+-- 返回map内全部的key
+select name, map_keys(members) from test_map;
+-- 返回map内全部的value
+select name, map_values(members) from test_map;
+-- 如果包含指定的value，返回true
+select * from test_array where array_contains(work_location, 'beijin');
+-- 根据数组元素的自然顺序按次序升序对输入数组进行排序并返回它
+select *, sort_array(work_location) from test_array;
+```
+
+
+
+```hive
+-- 类型转换
+-- 将指定字符转换为二进制
+select binary ('hadoop');
+-- 自由转换 类型转换失败数据报错或返回null
+select cast( '1' as int);
+```
+
+
+
+```hive
+-- 日期函数
+-- 当前时间戳
+select current_timestamp();
+-- 当前日期
+select current_date();
+-- 年月日季度等
+select year('2024-3-4');
+select month('2024-3-4');
+select day('2024-3-4');
+select quarter('2024-3-4');
+select dayofmonth('2024-3-10');
+select hour('2024-03-04 13:49:34');
+select minute('2024-03-04 13:49:34');
+select second('2024-03-04 13:49:34');
+select weekofyear('2024-03-04 13:49:34');
+-- 日期之间的天数
+select datediff('2024-02-12', '2024-1-9');
+-- 日期加减
+select date_add('2024-03-04', 3);
+select date_sub('2024-03-04', 4);
+
+```
+
+
+
+条件函数
+
+![image-20240304135340880](assets/image-20240304135340880.png)
+
+
+
+字符串函数
+
+![image-20240304135414152](assets/image-20240304135414152.png)
+
+
+
+数据脱敏函数
+
+![image-20240304135439403](assets/image-20240304135439403.png)
+
+
+
+其他函数
+
+![image-20240304135500614](assets/image-20240304135500614.png)
 
