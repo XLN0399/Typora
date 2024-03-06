@@ -75,8 +75,8 @@ create table if not exists tb_rs_hour_msg_cnt
 comment '每小时消息总量趋势' as
 select
     msg_hour,
-    count(distinct sender_account) as sender_usr_cnt,
-    count(distinct receiver_account) as receiver_usr_cnt
+    count(sender_account) as sender_usr_cnt,
+    count(receiver_account) as receiver_usr_cnt
 from tb_msg_etl group by msg_hour;
 select * from tb_rs_hour_msg_cnt;
 
@@ -199,7 +199,11 @@ BI：Business Intelligence，商业智能
 
 
 
+![image-20240306101540107](assets/image-20240306101540107.png)
 
+
+
+然后点击每一张表，将数据更新一边，进行数据加载
 
 
 
@@ -238,6 +242,18 @@ character_set_server=utf8
 
 
 注意如果是后面修改字符集编码，之前创建的数据库和数据表的编码不会被修改，需要单独进行编码修改
+
+
+
+![image-20240306103234744](assets/image-20240306103234744.png)
+
+
+
+然后弹框，选择你需要的数据集
+
+
+
+![image-20240306103132138](assets/image-20240306103132138.png)
 
 
 
