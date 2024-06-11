@@ -220,7 +220,7 @@ export HIVE_CONF_DIR=/export/server/hive/conf
 export HIVE_AUX_JARS_PATH=/export/server/hive/lib
 ```
 
-8. 修改`hive-site.xml`文件
+8. 修改`hive-site.xml`文件（直接新建）
 
 ```xml
 <configuration>
@@ -259,7 +259,7 @@ export HIVE_AUX_JARS_PATH=/export/server/hive/lib
 
 ```mysql
 # 在MySQL新建数据库 hive
-create database hive charset utf-8;
+create database hive charset 'utf8';
 ```
 
 ```sh
@@ -296,6 +296,12 @@ nohup /export/server/hive/bin/hive --service metastore >> /export/server/hive/lo
 
 # 方式2 Hive ThriftServer方式 不可直接写SQL 需要外部客户端链接使用
 /export/server/hive/bin/hive --service hiveserver2
+```
+
+如果出现 当前节点是安全模式无法进入hive来操作，可使用以下命令关闭安全节点
+
+```sh
+hdfs dfsadmin -safemode forceExit
 ```
 
 
